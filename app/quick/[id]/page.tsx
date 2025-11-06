@@ -74,7 +74,7 @@ export default function QuickUsagePage() {
         .single();
 
       if (error) {
-        setStatusMsg(`❌ Error loading roll: ${error.message}`);
+        setStatusMsg(` Error loading roll: ${error.message}`);
         setLoading(false);
         return;
       }
@@ -85,10 +85,10 @@ export default function QuickUsagePage() {
         status: data.status,
         material: data.materials
           ? {
-              brand: data.materials.brand,
-              film_code: data.materials.film_code,
-              color_name: data.materials.color_name,
-              width_in: data.materials.width_in,
+              brand: data.materials[0].brand,
+              film_code: data.materials[0].film_code,
+              color_name: data.materials[0].color_name,
+              width_in: data.materials[0].width_in,
             }
           : null,
         usages: data.roll_usages || [],
