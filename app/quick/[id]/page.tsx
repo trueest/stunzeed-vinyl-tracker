@@ -85,7 +85,7 @@ export default function QuickUsagePage() {
         id: data.id,
         starting_length_in: data.starting_length_in,
         status: data.status,
-        material: data.materials
+        material: mat
           ? {
               brand: mat.brand,
               film_code: mat.film_code,
