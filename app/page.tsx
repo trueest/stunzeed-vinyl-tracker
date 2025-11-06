@@ -1,65 +1,213 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import Link from 'next/link';
+import { Protected } from './components/Protected';
+import { useRouter } from 'next/navigation';
+
+type MaterialRemaining = {
+  material_id: string;
+  brand: string;
+  film_code: string;
+  color_name: string;
+  width_in: number;
+  reorder_threshold_in: number;
+  total_remaining_in: number;
+};
+
+function inchesToFeet(inches: number): string {
+  const feet = inches / 12;
+  return feet.toFixed(1);
+}
+
+export default function DashboardPage() {
+  const router = useRouter();
+  const [materialsCount, setMaterialsCount] = useState<number | null>(null);
+  const [openRollsCount, setOpenRollsCount] = useState<number | null>(null);
+  const [lowInventory, setLowInventory] = useState<MaterialRemaining[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.push('/login');
+  }
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+
+      // Total materials
+      const { data: materialsData, error: materialsError } = await supabase
+        .from('materials')
+        .select('id', { count: 'exact', head: true });
+
+      if (materialsError) {
+        setError(materialsError.message);
+        setLoading(false);
+        return;
+      }
+
+      setMaterialsCount(materialsData === null ? 0 : (materialsData as any).length);
+
+      const { count: matCount, error: matCountError } = await supabase
+        .from('materials')
+        .select('*', { count: 'exact', head: true });
+
+      if (!matCountError && matCount !== null) {
+        setMaterialsCount(matCount);
+      }
+
+      // Open rolls count
+      const { count: rollCount, error: rollsError } = await supabase
+        .from('rolls')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'open');
+
+      if (rollsError) {
+        setError(rollsError.message);
+        setLoading(false);
+        return;
+      }
+
+      setOpenRollsCount(rollCount ?? 0);
+
+      // Low inventory list from material_remaining
+      const { data: materialRemaining, error: mrError } = await supabase
+        .from('material_remaining')
+        .select(
+          'material_id, brand, film_code, color_name, width_in, reorder_threshold_in, total_remaining_in'
+        );
+
+      if (mrError) {
+        setError(mrError.message);
+        setLoading(false);
+        return;
+      }
+
+      const low = (materialRemaining || []).filter((m: any) => {
+        const threshold = m.reorder_threshold_in || 0;
+        if (threshold <= 0) return false;
+        return m.total_remaining_in < threshold;
+      });
+
+      setLowInventory(low);
+      setLoading(false);
+    }
+
+    load();
+  }, []);
+
+  if (loading) {
+    return (
+    <Protected><div className="p-6">Loading dashboard…</div>;
+    </Protected> )
+  }
+
+  if (error) {
+    return (
+      <Protected><div className="p-6 text-red-600">
+        Error loading dashboard: {error}
+      </div>
+    </Protected> );
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div className="p-6 space-y-6 max-w-4xl mx-auto">
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Vinyl Inventory Dashboard</h1>
+          <p className="text-sm text-gray-600">
+            Quick overview of materials, rolls, and low inventory.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+        <div className="flex gap-2">
+          <Link
+            href="/rolls"
+            className="text-sm border px-3 py-1 rounded hover:bg-gray-50"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            View Rolls
+          </Link>
+          <Link
+            href="/rolls/new"
+            className="text-sm border px-3 py-1 rounded hover:bg-gray-50"
           >
-            Documentation
-          </a>
+            + Roll
+          </Link>
+          <Link
+            href="/materials/new"
+            className="text-sm border px-3 py-1 rounded hover:bg-gray-50"
+          >
+            + Material
+          </Link>
+          <Link 
+            href="/reports/usage"
+            className="text-sm border px-3 py-1 rounded hover:bg-gray-50"
+          >
+            Usage Reports
+          </Link>
+          <button 
+          onClick={handleLogout} 
+          className="text-sm border px-3 py-1 rounded hover:bg-gray-50">
+          Logout
+          </button>
         </div>
-      </main>
+      </header>
+
+      {/* Stats row */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="border rounded-lg p-4">
+          <div className="text-xs text-gray-500">Materials</div>
+          <div className="text-2xl font-semibold">
+            {materialsCount ?? 0}
+          </div>
+        </div>
+        <div className="border rounded-lg p-4">
+          <div className="text-xs text-gray-500">Open Rolls</div>
+          <div className="text-2xl font-semibold">
+            {openRollsCount ?? 0}
+          </div>
+        </div>
+        <div className="border rounded-lg p-4">
+          <div className="text-xs text-gray-500">Low Inventory</div>
+          <div className="text-2xl font-semibold">
+            {lowInventory.length}
+          </div>
+        </div>
+      </div>
+
+      {/* Low inventory list */}
+      <section className="border rounded-lg p-4 space-y-3">
+        <h2 className="text-lg font-semibold">Low Inventory Materials</h2>
+        {lowInventory.length === 0 ? (
+          <p className="text-sm text-gray-600">
+            No materials are currently below their reorder thresholds.
+          </p>
+        ) : (
+          <div className="space-y-2 text-sm">
+            {lowInventory.map((m) => (
+              <div
+                key={m.material_id}
+                className="flex items-center justify-between border-b last:border-b-0 pb-2"
+              >
+                <div>
+                  <div className="font-medium">
+                    {m.brand} {m.film_code} – {m.color_name}{' '}
+                    ({m.width_in}" wide)
+                  </div>
+                  <div className="text-xs text-gray-600">
+                    Remaining:{' '}
+                    {inchesToFeet(m.total_remaining_in)} ft ·
+                    Threshold:{' '}
+                    {inchesToFeet(m.reorder_threshold_in)} ft
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
