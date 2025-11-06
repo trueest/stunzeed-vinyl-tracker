@@ -79,16 +79,18 @@ export default function QuickUsagePage() {
         return;
       }
 
+      const mat = Array.isArray(data.materials) ? data.materials[0] : data.materials;
+
       const mapped: Roll = {
         id: data.id,
         starting_length_in: data.starting_length_in,
         status: data.status,
         material: data.materials
           ? {
-              brand: data.materials[0].brand,
-              film_code: data.materials[0].film_code,
-              color_name: data.materials[0].color_name,
-              width_in: data.materials[0].width_in,
+              brand: mat.brand,
+              film_code: mat.film_code,
+              color_name: mat.color_name,
+              width_in: mat.width_in,
             }
           : null,
         usages: data.roll_usages || [],
@@ -156,16 +158,17 @@ export default function QuickUsagePage() {
       .single();
 
     if (!reloadError && data) {
+      const mat = Array.isArray(data.materials) ? data.materials[0] : data.materials;
       const mapped: Roll = {
         id: data.id,
         starting_length_in: data.starting_length_in,
         status: data.status,
-        material: data.materials
+        material: mat
           ? {
-              brand: data.materials.brand,
-              film_code: data.materials.film_code,
-              color_name: data.materials.color_name,
-              width_in: data.materials.width_in,
+              brand: mat.brand,
+              film_code: mat.film_code,
+              color_name: mat.color_name,
+              width_in: mat.width_in,
             }
           : null,
         usages: data.roll_usages || [],
