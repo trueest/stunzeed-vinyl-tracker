@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Stunzeed Vinyl Tracker
 
-## Getting Started
+An internal web application developed for Stunzeed Auto Stylez to manage and track print vinyl inventory.  
+Built with Next.js, Supabase, and Vercel to streamline material tracking, reduce waste, and improve production efficiency.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Overview
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The Stunzeed Vinyl Tracker provides real-time insight into vinyl roll inventory.  
+Users can log material usage, monitor remaining lengths, and review aggregated usage reports across all materials.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Features
 
-## Learn More
+- Material and roll management with automatic tracking of remaining lengths  
+- Usage logging with waste accounting  
+- Reporting dashboard for material usage and waste analytics  
+- Secure authentication via Supabase  
+- Mobile-friendly quick subtract interface for in-shop use  
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Technology Stack
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Next.js** – Frontend and API routing  
+- **Supabase** – PostgreSQL database and authentication  
+- **Vercel** – Production hosting and deployment  
+- **TypeScript** and **Tailwind CSS** – Interface and styling
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Deployment
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+This application is deployed on Vercel and uses Supabase for data and authentication.  
+Environment variables are managed through Vercel for production.
+
+---
+
+## Access
+
+Access is restricted to authorized Stunzeed staff.  
+User accounts are provisioned through Supabase.
