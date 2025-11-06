@@ -93,23 +93,25 @@ export default function RollDetailPage() {
         .single();
 
       if (error) {
-        setStatusMsg(`❌ Error loading roll: ${error.message}`);
+        setStatusMsg(`Error loading roll: ${error.message}`);
         setLoading(false);
         return;
       }
 
+      const mat = Array.isArray(data.materials) ? data.materials[0] : data.materials;
+      
       const mapped: RollDetail = {
         id: data.id,
         location: data.location,
         starting_length_in: data.starting_length_in,
         status: data.status,
         note: data.note,
-        material: data.materials
+        material: mat
           ? {
-              brand: data.materials.brand,
-              film_code: data.materials.film_code,
-              color_name: data.materials.color_name,
-              width_in: data.materials.width_in,
+              brand: mat.brand,
+              film_code: mat.film_code,
+              color_name: mat.color_name,
+              width_in: mat.width_in,
             }
           : null,
         usages: (data.roll_usages || []).sort(
@@ -192,18 +194,19 @@ export default function RollDetailPage() {
       .single();
 
     if (!reloadError && data) {
+      const mat = Array.isArray(data.materials) ? data.materials[0] : data.materials;
       const mapped: RollDetail = {
         id: data.id,
         location: data.location,
         starting_length_in: data.starting_length_in,
         status: data.status,
         note: data.note,
-        material: data.materials
+        material: mat
           ? {
-              brand: data.materials.brand,
-              film_code: data.materials.film_code,
-              color_name: data.materials.color_name,
-              width_in: data.materials.width_in,
+              brand: mat.brand,
+              film_code: mat.film_code,
+              color_name: mat.color_name,
+              width_in: mat.width_in,
             }
           : null,
         usages: (data.roll_usages || []).sort(
