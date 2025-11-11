@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import Link from 'next/link';
 
 type Material = {
   id: string;
@@ -54,6 +55,7 @@ export default function NewRollPage() {
 
   return (
     <div className="p-6 max-w-md mx-auto space-y-4">
+      <Link href="/"> ← Back to Dashboard </Link>
       <h1 className="text-2xl font-semibold">Add New Roll</h1>
 
       <form onSubmit={handleSubmit} className="space-y-3">
@@ -83,8 +85,8 @@ export default function NewRollPage() {
         <input
           type="number"
           className="border p-2 w-full rounded"
-          placeholder="Starting length (in)"
-          value={form.starting_length_in}
+          placeholder="Starting length (in) Set to 150 feet (1800 inches)"
+          //value={form.starting_length_in} // default to 150 feet
           onChange={(e) =>
             setForm({ ...form, starting_length_in: Number(e.target.value) })
           }
@@ -110,7 +112,6 @@ export default function NewRollPage() {
           value={form.note}
           onChange={(e) => setForm({ ...form, note: e.target.value })}
         />
-
         <button
           type="submit"
           className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800"

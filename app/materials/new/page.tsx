@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import Link from 'next/link';
 
 export default function NewMaterialPage() {
   const [form, setForm] = useState({
@@ -35,6 +36,7 @@ export default function NewMaterialPage() {
 
   return (
     <div className="p-6 max-w-md mx-auto space-y-4">
+      <Link href="/"> ← Back to Dashboard </Link>
       <h1 className="text-2xl font-semibold">Add New Material</h1>
 
       <form onSubmit={handleSubmit} className="space-y-3">
@@ -69,14 +71,14 @@ export default function NewMaterialPage() {
           type="number"
           className="border p-2 w-full rounded"
           placeholder="Width (in)"
-          value={form.width_in}
+          //value={form.width_in}
           onChange={(e) => setForm({ ...form, width_in: Number(e.target.value) })}
         />
         <input
           type="number"
           className="border p-2 w-full rounded"
-          placeholder="Reorder threshold (in)"
-          value={form.reorder_threshold_in}
+          placeholder="Reorder threshold (in) Set to 300 inches (25 feet)"
+          //value={form.reorder_threshold_in}
           onChange={(e) =>
             setForm({ ...form, reorder_threshold_in: Number(e.target.value) })
           }

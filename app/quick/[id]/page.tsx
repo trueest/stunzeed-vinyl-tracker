@@ -192,21 +192,21 @@ export default function QuickUsagePage() {
     remainingIn !== null && remainingIn < 25 * 12; // under 25 ft
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-md p-5 space-y-4">
         <div className="text-center space-y-1">
           <div className="text-xs text-gray-500">Quick Subtract</div>
-          <div className="font-semibold">
+          <div className="font-semibold text-black">
             {roll.material
               ? `${roll.material.brand} ${roll.material.film_code}`
               : 'Roll'}
           </div>
           {roll.material && (
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-black">
               {roll.material.color_name} · {roll.material.width_in}" wide
             </div>
           )}
-          <div className="text-sm mt-2">
+          <div className="text-sm mt-2 text-black">
             Remaining:{' '}
             <span className="font-semibold">
               {remainingFt} ft

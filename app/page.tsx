@@ -133,19 +133,19 @@ export default function DashboardPage() {
             href="/rolls/new"
             className="text-sm border px-3 py-1 rounded hover:bg-gray-50"
           >
-            + Roll
+            + New Roll
           </Link>
           <Link
             href="/materials/new"
             className="text-sm border px-3 py-1 rounded hover:bg-gray-50"
           >
-            + Material
+            + New Material
           </Link>
           <Link 
             href="/reports/usage"
             className="text-sm border px-3 py-1 rounded hover:bg-gray-50"
           >
-            Usage Reports
+            Reports
           </Link>
           <button 
           onClick={handleLogout} 

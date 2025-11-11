@@ -100,26 +100,27 @@ export default function RollsPage() {
 
   return (
     <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">All Rolls</h1>
-        <div className="flex gap-2">
+      <div className="grid grid-cols-3 items-center">
+        <Link href="/"> ← Back to Dashboard </Link>
+        <h1 className="text-2xl font-semibold text-center">All Rolls</h1>
+        <div className="flex gap-2 justify-end">
           <Link
             href="/materials/new"
             className="text-sm border px-3 py-1 rounded hover:bg-gray-30"
           >
-            + Material
+            + New Material
           </Link>
           <Link
             href="/rolls/new"
             className="text-sm border px-3 py-1 rounded hover:bg-gray-30"
           >
-            + Roll
+            + New Roll
           </Link>
           <Link
             href="/usage/new"
             className="text-sm border px-3 py-1 rounded hover:bg-gray-30"
           >
-            + Usage
+            + Log Usage
           </Link>
         </div>
       </div>

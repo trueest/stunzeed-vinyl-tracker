@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { Protected } from '../../components/Protected';
+import Link from 'next/link';
 
 type UsageRow = {
   used_length_in: number;
@@ -140,6 +141,7 @@ export default function UsageReportPage() {
       <div className="p-6 max-w-5xl mx-auto space-y-4">
         <div className="flex items-center justify-between">
           <div>
+            <Link href="/"> ← Back to Dashboard </Link>
             <h1 className="text-2xl font-semibold">Usage Report</h1>
             <p className="text-sm text-gray-600">
               Aggregated vinyl usage by material over a selected date range.
