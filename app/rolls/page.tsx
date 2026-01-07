@@ -50,6 +50,7 @@ export default function RollsPage() {
             width_in
           )
         `)
+        .eq('status', 'open')
         .order('received_at', { ascending: false });
 
       if (rollsError) {

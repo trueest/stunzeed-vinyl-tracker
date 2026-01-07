@@ -142,10 +142,10 @@ export default function DashboardPage() {
             + New Material
           </Link>
           <Link 
-            href="/reports/usage"
+            href="/history"
             className="text-sm border px-3 py-1 rounded hover:bg-gray-50"
           >
-            Reports
+            History
           </Link>
           <button 
           onClick={handleLogout} 
