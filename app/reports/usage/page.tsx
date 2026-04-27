@@ -92,7 +92,7 @@ export default function UsageReportPage() {
       return;
     }
 
-    const rows = (usageData ?? []) as UsageRow[];
+    const rows = (usageData ?? []) as unknown as UsageRow[];
 
     const agg: Record<string, Aggregated> = {};
 

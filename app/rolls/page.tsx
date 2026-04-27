@@ -93,7 +93,7 @@ export default function RollsPage() {
       });
 
       // Merge remaining into flattened RollRow shape
-      const mapped: RollRow[] = (rollsData as RawRollRow[]).map((row) => ({
+      const mapped: RollRow[] = (rollsData as unknown as RawRollRow[]).map((row) => ({
         id: row.id,
         location: row.location,
         starting_length_in: row.starting_length_in,

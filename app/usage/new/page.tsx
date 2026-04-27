@@ -68,7 +68,7 @@ export default function NewUsagePage() {
         .eq('status', ROLL_STATUS.OPEN);
 
       if (!error && data) {
-        const mapped: Roll[] = (data as RawRollRow[]).map((row) => ({
+        const mapped: Roll[] = (data as unknown as RawRollRow[]).map((row) => ({
           id: row.id,
           starting_length_in: row.starting_length_in,
           status: row.status,

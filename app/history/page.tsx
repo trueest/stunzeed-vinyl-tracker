@@ -183,7 +183,7 @@ export default function HistoryPage() {
     }
 
     const agg: Record<string, ReportAgg> = {};
-    (data ?? []).forEach((row: ReportRow) => {
+    (data as unknown as ReportRow[] ?? []).forEach((row) => {
       const mat = Array.isArray(row.rolls?.materials) ? row.rolls!.materials![0] : row.rolls?.materials;
       if (!mat) return;
 
