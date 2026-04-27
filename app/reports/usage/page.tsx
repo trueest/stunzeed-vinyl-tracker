@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { Protected } from '../../components/Protected';
 import Link from 'next/link';
+import { inchesToFeet } from '@/lib/utils';
 
 type UsageRow = {
   used_length_in: number;
@@ -20,8 +21,6 @@ type UsageRow = {
   } | null;
 };
 
-type MaterialKey = string;
-
 type Aggregated = {
   brand: string;
   film_code: string;
@@ -31,14 +30,10 @@ type Aggregated = {
   total_waste_in: number;
 };
 
-function inchesToFeet(inches: number): string {
-  const feet = inches / 12;
-  return feet.toFixed(1);
-}
 
 function getDefaultDateRange() {
   const today = new Date();
-  const to = today.toISOString().slice(0, 10); // YYYY-MM-DD
+  const to = today.toISOString().slice(0, 10);
 
   const fromDate = new Date();
   fromDate.setDate(fromDate.getDate() - 30);
@@ -55,17 +50,20 @@ export default function UsageReportPage() {
   const [data, setData] = useState<Aggregated[]>([]);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [dateError, setDateError] = useState<string | null>(null);
 
   async function loadReport() {
+    if (dateFrom > dateTo) {
+      setDateError('Start date must be before end date.');
+      return;
+    }
+    setDateError(null);
     setLoading(true);
     setStatus('Loading usage data...');
 
-    // Build ISO date range (inclusive)
-    const fromISO = new Date(dateFrom + 'T00:00:00').toISOString();
-    const toDateObj = new Date(dateTo + 'T23:59:59');
-    const toISO = toDateObj.toISOString();
+    const fromISO = `${dateFrom}T00:00:00.000Z`;
+    const toISO = `${dateTo}T23:59:59.999Z`;
 
-    // Fetch usage with rolls + materials
     const { data: usageData, error } = await supabase
       .from('roll_usages')
       .select(
@@ -94,15 +92,15 @@ export default function UsageReportPage() {
       return;
     }
 
-    const rows: UsageRow[] = (usageData || []) as any;
+    const rows = (usageData ?? []) as UsageRow[];
 
-    const agg: Record<MaterialKey, Aggregated> = {};
+    const agg: Record<string, Aggregated> = {};
 
     for (const row of rows) {
       const mat = row.rolls?.materials;
-      if (!mat) continue; // skip if roll/material missing
+      if (!mat) continue;
 
-      const key: MaterialKey = `${mat.brand}|${mat.film_code}|${mat.color_name}|${mat.width_in}`;
+      const key = `${mat.brand}|${mat.film_code}|${mat.color_name}|${mat.width_in}`;
 
       if (!agg[key]) {
         agg[key] = {
@@ -149,7 +147,6 @@ export default function UsageReportPage() {
           </div>
         </div>
 
-        {/* Filters */}
         <div className="border rounded-lg p-4 flex flex-col sm:flex-row gap-3 items-end">
           <div className="flex flex-col">
             <label className="text-xs text-gray-600 mb-1">From</label>
@@ -178,11 +175,14 @@ export default function UsageReportPage() {
           </button>
         </div>
 
+        {dateError && (
+          <p className="text-sm text-red-600 mt-1">{dateError}</p>
+        )}
+
         {status && (
           <p className="text-xs text-gray-600 mt-1">{status}</p>
         )}
 
-        {/* Table */}
         <div className="border rounded-lg p-4 overflow-x-auto">
           {data.length === 0 ? (
             <p className="text-sm text-gray-600">

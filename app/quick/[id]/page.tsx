@@ -3,6 +3,10 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { Protected } from '@/app/components/Protected';
+import { inchesToFeet } from '@/lib/utils';
+
+const DEFAULT_REORDER_THRESHOLD_IN = 300; // 25 ft
 
 type Roll = {
   id: string;
@@ -13,6 +17,7 @@ type Roll = {
     film_code: string;
     color_name: string;
     width_in: number;
+    reorder_threshold_in: number | null;
   } | null;
   usages: {
     used_length_in: number;
@@ -20,9 +25,9 @@ type Roll = {
   }[];
 };
 
-function inchesToFeet(inches: number): string {
-  const feet = inches / 12;
-  return feet.toFixed(1);
+
+function toInputValue(n: number): number | '' {
+  return n === 0 ? '' : n;
 }
 
 export default function QuickUsagePage() {
@@ -32,7 +37,8 @@ export default function QuickUsagePage() {
 
   const [roll, setRoll] = useState<Roll | null>(null);
   const [loading, setLoading] = useState(true);
-  const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [status, setStatus] = useState<{ text: string; type: 'error' | 'success' } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [usedFt, setUsedFt] = useState<number>(0);
   const [wasteFt, setWasteFt] = useState<number>(0);
@@ -62,7 +68,8 @@ export default function QuickUsagePage() {
             brand,
             film_code,
             color_name,
-            width_in
+            width_in,
+            reorder_threshold_in
           ),
           roll_usages (
             used_length_in,
@@ -74,7 +81,7 @@ export default function QuickUsagePage() {
         .single();
 
       if (error) {
-        setStatusMsg(` Error loading roll: ${error.message}`);
+        setStatus({ text: `Error loading roll: ${error.message}`, type: 'error' });
         setLoading(false);
         return;
       }
@@ -91,6 +98,7 @@ export default function QuickUsagePage() {
               film_code: mat.film_code,
               color_name: mat.color_name,
               width_in: mat.width_in,
+              reorder_threshold_in: mat.reorder_threshold_in ?? null,
             }
           : null,
         usages: data.roll_usages || [],
@@ -105,75 +113,53 @@ export default function QuickUsagePage() {
 
   async function handleQuickLog(e: React.FormEvent) {
     e.preventDefault();
-    if (!rollId) return;
+    if (!rollId || !roll) return;
 
     const used_length_in = Math.round(Number(usedFt) * 12);
     const waste_length_in = Math.round(Number(wasteFt || 0) * 12);
 
     if (used_length_in <= 0) {
-      setStatusMsg(' Used length must be greater than 0.');
+      setStatus({ text: 'Used length must be greater than 0.', type: 'error' });
       return;
     }
 
-    const { error } = await supabase.from('roll_usages').insert([
-      {
-        roll_id: rollId,
-        used_length_in,
-        waste_length_in,
-      },
-    ]);
-
-    if (error) {
-      setStatusMsg(` Error saving usage: ${error.message}`);
+    if (remainingIn !== null && used_length_in + waste_length_in > remainingIn) {
+      setStatus({
+        text: `Cannot log ${inchesToFeet(used_length_in + waste_length_in)} ft — only ${inchesToFeet(remainingIn)} ft remaining on this roll.`,
+        type: 'error',
+      });
       return;
     }
 
-    setStatusMsg(' Saved!');
-
-    // Clear fields for next subtraction
-    setUsedFt(0);
-    setWasteFt(0);
-
-    // Reload remaining
-    const { data, error: reloadError } = await supabase
-      .from('rolls')
-      .select(
-        `
-        id,
-        starting_length_in,
-        status,
-        materials:material_id (
-          brand,
-          film_code,
-          color_name,
-          width_in
-        ),
-        roll_usages (
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase.from('roll_usages').insert([
+        {
+          roll_id: rollId,
           used_length_in,
-          waste_length_in
-        )
-      `
-      )
-      .eq('id', rollId)
-      .single();
+          waste_length_in,
+        },
+      ]);
 
-    if (!reloadError && data) {
-      const mat = Array.isArray(data.materials) ? data.materials[0] : data.materials;
-      const mapped: Roll = {
-        id: data.id,
-        starting_length_in: data.starting_length_in,
-        status: data.status,
-        material: mat
-          ? {
-              brand: mat.brand,
-              film_code: mat.film_code,
-              color_name: mat.color_name,
-              width_in: mat.width_in,
-            }
-          : null,
-        usages: data.roll_usages || [],
-      };
-      setRoll(mapped);
+      if (error) {
+        setStatus({ text: `Error saving usage: ${error.message}`, type: 'error' });
+        return;
+      }
+
+      setStatus({ text: 'Saved!', type: 'success' });
+
+      setUsedFt(0);
+      setWasteFt(0);
+
+      setRoll((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          usages: [...prev.usages, { used_length_in, waste_length_in }],
+        };
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -188,82 +174,84 @@ export default function QuickUsagePage() {
   const remainingFt =
     remainingIn !== null ? inchesToFeet(remainingIn) : '—';
 
-  const low =
-    remainingIn !== null && remainingIn < 25 * 12; // under 25 ft
+  const low = remainingIn !== null && remainingIn < (roll.material?.reorder_threshold_in ?? DEFAULT_REORDER_THRESHOLD_IN);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-md p-5 space-y-4">
-        <div className="text-center space-y-1">
-          <div className="text-xs text-gray-500">Quick Subtract</div>
-          <div className="font-semibold text-black">
-            {roll.material
-              ? `${roll.material.brand} ${roll.material.film_code}`
-              : 'Roll'}
+    <Protected>
+      <div className="min-h-screen flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-sm bg-white rounded-2xl shadow-md p-5 space-y-4">
+          <div className="text-center space-y-1">
+            <div className="text-xs text-gray-500">Quick Subtract</div>
+            <div className="font-semibold text-black">
+              {roll.material
+                ? `${roll.material.brand} ${roll.material.film_code}`
+                : 'Roll'}
+            </div>
+            {roll.material && (
+              <div className="text-xs text-black">
+                {roll.material.color_name} · {roll.material.width_in}" wide
+              </div>
+            )}
+            <div className="text-sm mt-2 text-black">
+              Remaining:{' '}
+              <span className="font-semibold">
+                {remainingFt} ft
+              </span>
+              {low && (
+                <span className="ml-2 text-xs text-red-600">
+                  (Low)
+                </span>
+              )}
+            </div>
           </div>
-          {roll.material && (
-            <div className="text-xs text-black">
-              {roll.material.color_name} · {roll.material.width_in}" wide
+
+          <form onSubmit={handleQuickLog} className="space-y-3">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">
+                Used (ft)
+              </label>
+              <input
+                type="number"
+                className="border rounded-lg w-full p-3 text-center text-lg"
+                value={toInputValue(usedFt)}
+                onChange={(e) => setUsedFt(Number(e.target.value))}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">
+                Waste (ft, optional)
+              </label>
+              <input
+                type="number"
+                className="border rounded-lg w-full p-3 text-center text-lg"
+                value={toInputValue(wasteFt)}
+                onChange={(e) => setWasteFt(Number(e.target.value))}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full bg-black text-white py-3 rounded-lg text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? 'Saving…' : 'Save'}
+            </button>
+          </form>
+
+          {status && (
+            <div className={`text-xs text-center ${status.type === 'error' ? 'text-red-600' : 'text-green-600'}`}>
+              {status.text}
             </div>
           )}
-          <div className="text-sm mt-2 text-black">
-            Remaining:{' '}
-            <span className="font-semibold">
-              {remainingFt} ft
-            </span>
-            {low && (
-              <span className="ml-2 text-xs text-red-600">
-                (Low)
-              </span>
-            )}
-          </div>
-        </div>
 
-        <form onSubmit={handleQuickLog} className="space-y-3">
-          <div>
-            <label className="block text-xs text-gray-600 mb-1">
-              Used (ft)
-            </label>
-            <input
-              type="number"
-              className="border rounded-lg w-full p-3 text-center text-lg"
-              value={usedFt}
-              onChange={(e) => setUsedFt(Number(e.target.value))}
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-600 mb-1">
-              Waste (ft, optional)
-            </label>
-            <input
-              type="number"
-              className="border rounded-lg w-full p-3 text-center text-lg"
-              value={wasteFt}
-              onChange={(e) => setWasteFt(Number(e.target.value))}
-            />
-          </div>
           <button
-            type="submit"
-            className="w-full bg-black text-white py-3 rounded-lg text-lg font-semibold"
+            onClick={() => router.push(`/rolls/${roll.id}`)}
+            className="w-full text-xs text-gray-500 mt-1 underline"
           >
-            Save
+            View full details
           </button>
-        </form>
-
-        {statusMsg && (
-          <div className="text-xs text-gray-600 text-center">
-            {statusMsg}
-          </div>
-        )}
-
-        <button
-          onClick={() => router.push(`/rolls/${roll.id}`)}
-          className="w-full text-xs text-gray-500 mt-1 underline"
-        >
-          View full details
-        </button>
+        </div>
       </div>
-    </div>
+    </Protected>
   );
 }

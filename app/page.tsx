@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient';
 import Link from 'next/link';
 import { Protected } from './components/Protected';
 import { useRouter } from 'next/navigation';
+import { inchesToFeet, ROLL_STATUS } from '@/lib/utils';
 
 type MaterialRemaining = {
   material_id: string;
@@ -16,10 +17,6 @@ type MaterialRemaining = {
   total_remaining_in: number;
 };
 
-function inchesToFeet(inches: number): string {
-  const feet = inches / 12;
-  return feet.toFixed(1);
-}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -38,82 +35,67 @@ export default function DashboardPage() {
     async function load() {
       setLoading(true);
 
-      // Total materials
-      const { data: materialsData, error: materialsError } = await supabase
-        .from('materials')
-        .select('id', { count: 'exact', head: true });
+      try {
+        const [
+          { count: matCount, error: matCountError },
+          { count: rollCount, error: rollsError },
+          { data: materialRemaining, error: mrError },
+        ] = await Promise.all([
+          supabase
+            .from('materials')
+            .select('*', { count: 'exact', head: true }),
+          supabase
+            .from('rolls')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', ROLL_STATUS.OPEN),
+          supabase
+            .from('material_remaining')
+            .select(
+              'material_id, brand, film_code, color_name, width_in, reorder_threshold_in, total_remaining_in'
+            ),
+        ]);
 
-      if (materialsError) {
-        setError(materialsError.message);
+        if (matCountError) {
+          setError(matCountError.message);
+          return;
+        }
+        if (rollsError) {
+          setError(rollsError.message);
+          return;
+        }
+        if (mrError) {
+          setError(mrError.message);
+          return;
+        }
+
+        setMaterialsCount(matCount ?? 0);
+        setOpenRollsCount(rollCount ?? 0);
+
+        const low = (materialRemaining || []).filter((m: MaterialRemaining) => {
+          const threshold = m.reorder_threshold_in || 0;
+          if (threshold <= 0) return false;
+          return m.total_remaining_in < threshold;
+        });
+
+        setLowInventory(low);
+      } finally {
         setLoading(false);
-        return;
       }
-
-      setMaterialsCount(materialsData === null ? 0 : (materialsData as any).length);
-
-      const { count: matCount, error: matCountError } = await supabase
-        .from('materials')
-        .select('*', { count: 'exact', head: true });
-
-      if (!matCountError && matCount !== null) {
-        setMaterialsCount(matCount);
-      }
-
-      // Open rolls count
-      const { count: rollCount, error: rollsError } = await supabase
-        .from('rolls')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'open');
-
-      if (rollsError) {
-        setError(rollsError.message);
-        setLoading(false);
-        return;
-      }
-
-      setOpenRollsCount(rollCount ?? 0);
-
-      // Low inventory list from material_remaining
-      const { data: materialRemaining, error: mrError } = await supabase
-        .from('material_remaining')
-        .select(
-          'material_id, brand, film_code, color_name, width_in, reorder_threshold_in, total_remaining_in'
-        );
-
-      if (mrError) {
-        setError(mrError.message);
-        setLoading(false);
-        return;
-      }
-
-      const low = (materialRemaining || []).filter((m: any) => {
-        const threshold = m.reorder_threshold_in || 0;
-        if (threshold <= 0) return false;
-        return m.total_remaining_in < threshold;
-      });
-
-      setLowInventory(low);
-      setLoading(false);
     }
 
     load();
   }, []);
 
   if (loading) {
-    return (
-    <Protected><div className="p-6">Loading dashboard…</div>;
-    </Protected> )
+    return <div className="p-6">Loading dashboard…</div>;
   }
 
   if (error) {
-    return (
-      <Protected><div className="p-6 text-red-600">
-        Error loading dashboard: {error}
-      </div>
-    </Protected> );
+    return <div className="p-6 text-red-600">Error loading dashboard: {error}</div>;
   }
 
   return (
+    <Protected>
     <div className="p-6 space-y-6 max-w-4xl mx-auto">
       <header className="flex items-center justify-between">
         <div>
@@ -141,16 +123,17 @@ export default function DashboardPage() {
           >
             + New Material
           </Link>
-          <Link 
+          <Link
             href="/history"
             className="text-sm border px-3 py-1 rounded hover:bg-gray-50"
           >
             History
           </Link>
-          <button 
-          onClick={handleLogout} 
-          className="text-sm border px-3 py-1 rounded hover:bg-gray-50">
-          Logout
+          <button
+            onClick={handleLogout}
+            className="text-sm border px-3 py-1 rounded hover:bg-gray-50"
+          >
+            Logout
           </button>
         </div>
       </header>
@@ -209,5 +192,6 @@ export default function DashboardPage() {
         )}
       </section>
     </div>
+    </Protected>
   );
 }

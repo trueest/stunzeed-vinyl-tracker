@@ -34,9 +34,8 @@ export function Protected({ children }: { children: ReactNode }) {
       (_event, session) => {
         if (!session) {
           router.push('/login');
-        } else {
-          setAuthorized(true);
         }
+        setAuthorized(!!session);
       }
     );
 

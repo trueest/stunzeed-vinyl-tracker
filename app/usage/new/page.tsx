@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
+import { Protected } from '@/app/components/Protected';
+import { ROLL_STATUS } from '@/lib/utils';
 
 type Roll = {
   id: string;
@@ -15,8 +18,27 @@ type Roll = {
   } | null;
 };
 
+type RawRollRow = {
+  id: string;
+  starting_length_in: number;
+  status: string | null;
+  materials: {
+    brand: string;
+    film_code: string;
+    color_name: string;
+    width_in: number;
+  } | null;
+};
+
+type Message = { text: string; type: 'error' | 'success' };
+
+function toInputValue(n: number): number | '' {
+  return n === 0 ? '' : n;
+}
+
 export default function NewUsagePage() {
   const [rolls, setRolls] = useState<Roll[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [form, setForm] = useState({
     roll_id: '',
     job_code: '',
@@ -24,7 +46,8 @@ export default function NewUsagePage() {
     waste_length_ft: 0,
     operator: '',
   });
-  const [status, setStatus] = useState<string | null>(null);
+  const [message, setMessage] = useState<Message | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Load open rolls with material info
   useEffect(() => {
@@ -42,10 +65,10 @@ export default function NewUsagePage() {
             width_in
           )
         `)
-        .eq('status', 'open');
+        .eq('status', ROLL_STATUS.OPEN);
 
       if (!error && data) {
-        const mapped: Roll[] = data.map((row: any) => ({
+        const mapped: Roll[] = (data as RawRollRow[]).map((row) => ({
           id: row.id,
           starting_length_in: row.starting_length_in,
           status: row.status,
@@ -60,6 +83,7 @@ export default function NewUsagePage() {
         }));
         setRolls(mapped);
       }
+      setIsLoading(false);
     }
 
     loadRolls();
@@ -67,10 +91,12 @@ export default function NewUsagePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setStatus('saving...');
+    setIsSubmitting(true);
+    setMessage(null);
 
     if (!form.roll_id) {
-      setStatus('Please select a roll.');
+      setMessage({ text: 'Please select a roll.', type: 'error' });
+      setIsSubmitting(false);
       return;
     }
 
@@ -78,112 +104,127 @@ export default function NewUsagePage() {
     const waste_length_in = Math.round(Number(form.waste_length_ft || 0) * 12);
 
     if (used_length_in <= 0) {
-      setStatus('Used length must be greater than 0.');
+      setMessage({ text: 'Used length must be greater than 0.', type: 'error' });
+      setIsSubmitting(false);
       return;
     }
 
-    const { error } = await supabase.from('roll_usages').insert([
-      {
-        roll_id: form.roll_id,
-        job_code: form.job_code || null,
-        operator: form.operator || null,
-        used_length_in,
-        waste_length_in,
-      },
-    ]);
+    try {
+      const { error } = await supabase.from('roll_usages').insert([
+        {
+          roll_id: form.roll_id,
+          job_code: form.job_code || null,
+          operator: form.operator || null,
+          used_length_in,
+          waste_length_in,
+        },
+      ]);
 
-    if (error) {
-      setStatus(`Error: ${error.message}`);
-    } else {
-      setStatus('Usage logged!');
-      setForm({
-        roll_id: '',
-        job_code: '',
-        used_length_ft: 0,
-        waste_length_ft: 0,
-        operator: '',
-      });
+      if (error) {
+        setMessage({ text: `Error: ${error.message}`, type: 'error' });
+      } else {
+        setMessage({ text: 'Usage logged!', type: 'success' });
+        setForm({
+          roll_id: '',
+          job_code: '',
+          used_length_ft: 0,
+          waste_length_ft: 0,
+          operator: '',
+        });
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
   return (
-    <div className="p-6 max-w-md mx-auto space-y-4">
-      <h1 className="text-2xl font-semibold">Log Vinyl Usage</h1>
+    <Protected>
+      <div className="p-6 max-w-md mx-auto space-y-4">
+        <Link href="/"> ← Back to Dashboard </Link>
+        <h1 className="text-2xl font-semibold">Log Vinyl Usage</h1>
 
-      <form onSubmit={handleSubmit} className="space-y-3">
-        {/* Roll selector */}
-        <label className="block text-sm font-medium">Roll</label>
-        <select
-          className="border p-2 w-full rounded"
-          value={form.roll_id}
-          onChange={(e) => setForm({ ...form, roll_id: e.target.value })}
-          required
-        >
-          <option value="">Select roll...</option>
-          {rolls.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.material
-                ? `${r.material.brand} ${r.material.film_code} – ${r.material.color_name} (${r.material.width_in}" wide)`
-                : r.id}
-            </option>
-          ))}
-        </select>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <label className="block text-sm font-medium">Roll</label>
+          <select
+            className="border p-2 w-full rounded"
+            value={form.roll_id}
+            onChange={(e) => setForm({ ...form, roll_id: e.target.value })}
+            disabled={isLoading}
+            required
+          >
+            {isLoading ? (
+              <option value="" disabled>Loading rolls…</option>
+            ) : (
+              <>
+                <option value="">Select roll...</option>
+                {rolls.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.material
+                      ? `${r.material.brand} ${r.material.film_code} – ${r.material.color_name} (${r.material.width_in}" wide)`
+                      : r.id}
+                  </option>
+                ))}
+              </>
+            )}
+          </select>
 
-        {/* Job code */}
-        <input
-          className="border p-2 w-full rounded"
-          placeholder="Job code / invoice (optional)"
-          value={form.job_code}
-          onChange={(e) => setForm({ ...form, job_code: e.target.value })}
-        />
+          <input
+            className="border p-2 w-full rounded"
+            placeholder="Job code / invoice (optional)"
+            value={form.job_code}
+            onChange={(e) => setForm({ ...form, job_code: e.target.value })}
+          />
 
-        {/* Used length in feet */}
-        <input
-          type="number"
-          className="border p-2 w-full rounded"
-          placeholder="Used length (ft)"
-          value={form.used_length_ft}
-          onChange={(e) =>
-            setForm({ ...form, used_length_ft: Number(e.target.value) })
-          }
-          required
-        />
+          <input
+            type="number"
+            className="border p-2 w-full rounded"
+            placeholder="Used length (ft)"
+            value={toInputValue(form.used_length_ft)}
+            onChange={(e) =>
+              setForm({ ...form, used_length_ft: Number(e.target.value) })
+            }
+            required
+          />
 
-        {/* Waste length in feet */}
-        <input
-          type="number"
-          className="border p-2 w-full rounded"
-          placeholder="Waste length (ft, optional)"
-          value={form.waste_length_ft}
-          onChange={(e) =>
-            setForm({ ...form, waste_length_ft: Number(e.target.value) })
-          }
-        />
+          <input
+            type="number"
+            className="border p-2 w-full rounded"
+            placeholder="Waste length (ft, optional)"
+            value={toInputValue(form.waste_length_ft)}
+            onChange={(e) =>
+              setForm({ ...form, waste_length_ft: Number(e.target.value) })
+            }
+          />
 
-        {/* Operator */}
-        <input
-          className="border p-2 w-full rounded"
-          placeholder="Operator (optional)"
-          value={form.operator}
-          onChange={(e) =>
-            setForm({ ...form, operator: e.target.value })
-          }
-        />
+          <input
+            className="border p-2 w-full rounded"
+            placeholder="Operator (optional)"
+            value={form.operator}
+            onChange={(e) =>
+              setForm({ ...form, operator: e.target.value })
+            }
+          />
 
-        <button
-          type="submit"
-          className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800"
-        >
-          Save Usage
-        </button>
-      </form>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800 disabled:opacity-60"
+          >
+            {isSubmitting ? 'Saving…' : 'Save Usage'}
+          </button>
+        </form>
 
-      {status && <p className="text-sm text-gray-600">{status}</p>}
+        {message && (
+          <p className={`text-sm ${message.type === 'error' ? 'text-red-600' : 'text-green-600'}`}>
+            {message.text}
+          </p>
+        )}
 
-      <p className="text-xs text-gray-500 mt-2">
-        Note: lengths are entered in feet here and stored as inches in the
-        database.
-      </p>
-    </div>
+        <p className="text-xs text-gray-500 mt-2">
+          Note: lengths are entered in feet here and stored as inches in the
+          database.
+        </p>
+      </div>
+    </Protected>
   );
 }

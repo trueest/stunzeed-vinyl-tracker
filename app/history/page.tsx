@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { Protected } from '../components/Protected'; // adjust if your Protected path differs
+import { Protected } from '../components/Protected';
 import Link from 'next/link';
+import { inchesToFeet, ROLL_STATUS } from '@/lib/utils';
 
 type UsageRow = {
   id: string;
@@ -29,9 +30,6 @@ type ArchivedRoll = {
   usages: UsageRow[];
 };
 
-function inchesToFeet(inches: number) {
-  return (inches / 12).toFixed(1);
-}
 
 function defaultRange() {
   const to = new Date();
@@ -42,10 +40,10 @@ function defaultRange() {
 }
 
 function toISOStart(ymd: string) {
-  return new Date(`${ymd}T00:00:00`).toISOString();
+  return `${ymd}T00:00:00.000Z`;
 }
 function toISOEnd(ymd: string) {
-  return new Date(`${ymd}T23:59:59`).toISOString();
+  return `${ymd}T23:59:59.999Z`;
 }
 
 export default function HistoryPage() {
@@ -54,20 +52,29 @@ export default function HistoryPage() {
   const [tab, setTab] = useState<'archived' | 'reports'>('archived');
   const [dateFrom, setDateFrom] = useState(defFrom);
   const [dateTo, setDateTo] = useState(defTo);
+  const [dateError, setDateError] = useState<string | null>(null);
 
   const [archived, setArchived] = useState<ArchivedRoll[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // report data
   const [reportRows, setReportRows] = useState<
     { brand: string; film_code: string; color_name: string; width_in: number; used_in: number; waste_in: number }[]
   >([]);
   const [reportLoading, setReportLoading] = useState(false);
 
+  function validateDates(): boolean {
+    if (dateFrom > dateTo) {
+      setDateError('Start date must be before end date.');
+      return false;
+    }
+    setDateError(null);
+    return true;
+  }
+
   async function loadArchived() {
+    if (!validateDates()) return;
     setLoading(true);
 
-    // 1) Get consumed rolls + material info
     const { data: rolls, error: rollsErr } = await supabase
       .from('rolls')
       .select(`
@@ -79,7 +86,9 @@ export default function HistoryPage() {
           brand, film_code, color_name, width_in
         )
       `)
-      .eq('status', 'consumed');
+      .eq('status', ROLL_STATUS.CONSUMED)
+      .gte('updated_at', toISOStart(dateFrom))
+      .lte('updated_at', toISOEnd(dateTo));
 
     if (rollsErr) {
       setArchived([]);
@@ -87,7 +96,6 @@ export default function HistoryPage() {
       return;
     }
 
-    // 2) Get usage rows filtered by date
     const { data: usages, error: usageErr } = await supabase
       .from('roll_usages')
       .select(`id, roll_id, used_length_in, waste_length_in, job_code, operator, created_at`)
@@ -100,19 +108,25 @@ export default function HistoryPage() {
       return;
     }
 
-    // group usage by roll_id
     const byRoll: Record<string, UsageRow[]> = {};
-    (usages || []).forEach((u: any) => {
+    (usages ?? []).forEach((u: UsageRow) => {
       if (!byRoll[u.roll_id]) byRoll[u.roll_id] = [];
       byRoll[u.roll_id].push(u);
     });
 
-    const result: ArchivedRoll[] = (rolls || []).map((r: any) => {
+    type RollRow = {
+      id: string;
+      starting_length_in: number;
+      location: string | null;
+      note: string | null;
+      materials: { brand: string; film_code: string; color_name: string; width_in: number } | { brand: string; film_code: string; color_name: string; width_in: number }[] | null;
+    };
+
+    const result: ArchivedRoll[] = (rolls ?? []).map((r: RollRow) => {
       const mat = Array.isArray(r.materials) ? r.materials[0] : r.materials;
-      const rows = (byRoll[r.id] || []).sort(
+      const rows = (byRoll[r.id] ?? []).sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
-
       return {
         id: r.id,
         starting_length_in: r.starting_length_in,
@@ -125,7 +139,6 @@ export default function HistoryPage() {
       };
     });
 
-    // optional: sort newest first by most recent usage
     result.sort((a, b) => {
       const aT = a.usages[0]?.created_at ? new Date(a.usages[0].created_at).getTime() : 0;
       const bT = b.usages[0]?.created_at ? new Date(b.usages[0].created_at).getTime() : 0;
@@ -136,8 +149,17 @@ export default function HistoryPage() {
     setLoading(false);
   }
 
+  type ReportAgg = { brand: string; film_code: string; color_name: string; width_in: number; used_in: number; waste_in: number };
+
   async function loadReport() {
+    if (!validateDates()) return;
     setReportLoading(true);
+
+    type ReportRow = {
+      used_length_in: number;
+      waste_length_in: number;
+      rolls: { materials: { brand: string; film_code: string; color_name: string; width_in: number } | null } | null;
+    };
 
     const { data, error } = await supabase
       .from('roll_usages')
@@ -160,21 +182,14 @@ export default function HistoryPage() {
       return;
     }
 
-    const agg: Record<string, any> = {};
-    (data || []).forEach((row: any) => {
-      const mat = Array.isArray(row.rolls?.materials) ? row.rolls.materials[0] : row.rolls?.materials;
+    const agg: Record<string, ReportAgg> = {};
+    (data ?? []).forEach((row: ReportRow) => {
+      const mat = Array.isArray(row.rolls?.materials) ? row.rolls!.materials![0] : row.rolls?.materials;
       if (!mat) return;
 
       const key = `${mat.brand}|${mat.film_code}|${mat.color_name}|${mat.width_in}`;
       if (!agg[key]) {
-        agg[key] = {
-          brand: mat.brand,
-          film_code: mat.film_code,
-          color_name: mat.color_name,
-          width_in: mat.width_in,
-          used_in: 0,
-          waste_in: 0,
-        };
+        agg[key] = { brand: mat.brand, film_code: mat.film_code, color_name: mat.color_name, width_in: mat.width_in, used_in: 0, waste_in: 0 };
       }
       agg[key].used_in += row.used_length_in || 0;
       agg[key].waste_in += row.waste_length_in || 0;
@@ -184,10 +199,11 @@ export default function HistoryPage() {
     setReportLoading(false);
   }
 
+  // Only re-fetch when the tab changes; date-range changes are applied explicitly via the Apply button.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (tab === 'archived') loadArchived();
-    if (tab === 'reports') loadReport();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    else loadReport();
   }, [tab]);
 
   return (
@@ -228,6 +244,10 @@ export default function HistoryPage() {
             Apply
           </button>
         </div>
+
+        {dateError && (
+          <p className="text-sm text-red-600">{dateError}</p>
+        )}
 
         {tab === 'archived' && (
           <section className="space-y-3">

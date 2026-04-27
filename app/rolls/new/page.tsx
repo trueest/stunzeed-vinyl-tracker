@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Protected } from '@/app/components/Protected';
+import { ROLL_STATUS } from '@/lib/utils';
 
 type Material = {
   id: string;
@@ -13,17 +16,18 @@ type Material = {
 };
 
 export default function NewRollPage() {
+  const router = useRouter();
   const [materials, setMaterials] = useState<Material[]>([]);
   const [form, setForm] = useState({
     material_id: '',
     supplier: '',
-    starting_length_in: 1800, // 150 feet.
+    starting_length_in: 1800, // 150 feet
     cost_cents: 0,
     note: '',
   });
-  const [status, setStatus] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Load materials when component mounts
   useEffect(() => {
     async function loadMaterials() {
       const { data, error } = await supabase
@@ -37,90 +41,100 @@ export default function NewRollPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setStatus('saving...');
-    const { error } = await supabase.from('rolls').insert([form]);
-    if (error) {
-      setStatus(`Error: ${error.message}`);
-    } else {
-      setStatus('Roll saved!');
-      setForm({
-        material_id: '',
-        supplier: '',
-        starting_length_in: 1800, // reset to default again
-        cost_cents: 0,
-        note: '',
-      });
+    setIsSubmitting(true);
+    setErrorMsg(null);
+
+    try {
+      const { error } = await supabase.from('rolls').insert([
+        { ...form, status: ROLL_STATUS.OPEN },
+      ]);
+      if (error) {
+        setErrorMsg(error.message);
+      } else {
+        router.push('/rolls');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
   return (
-    <div className="p-6 max-w-md mx-auto space-y-4">
-      <Link href="/"> ← Back to Dashboard </Link>
-      <h1 className="text-2xl font-semibold">Add New Roll</h1>
+    <Protected>
+      <div className="p-6 max-w-md mx-auto space-y-4">
+        <Link href="/"> ← Back to Dashboard </Link>
+        <h1 className="text-2xl font-semibold">Add New Roll</h1>
 
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <label className="block text-sm font-medium">Material</label>
-        <select
-          className="border p-2 w-full rounded"
-          value={form.material_id}
-          onChange={(e) => setForm({ ...form, material_id: e.target.value })}
-          required
-        >
-          <option value="">Select material...</option>
-          {materials.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.brand} {m.film_code} – {m.color_name} ({m.width_in}"
-              wide)
-            </option>
-          ))}
-        </select>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <label className="block text-sm font-medium">Material</label>
+          <select
+            className="border p-2 w-full rounded"
+            value={form.material_id}
+            onChange={(e) => setForm({ ...form, material_id: e.target.value })}
+            required
+          >
+            <option value="">Select material...</option>
+            {materials.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.brand} {m.film_code} – {m.color_name} ({m.width_in}"
+                wide)
+              </option>
+            ))}
+          </select>
 
-        <input
-          className="border p-2 w-full rounded"
-          placeholder="Supplier (Fellers, Metro, etc.)"
-          value={form.supplier}
-          onChange={(e) => setForm({ ...form, supplier: e.target.value })}
-        />
+          <input
+            className="border p-2 w-full rounded"
+            placeholder="Supplier (Fellers, Metro, etc.)"
+            value={form.supplier}
+            onChange={(e) => setForm({ ...form, supplier: e.target.value })}
+          />
 
-        <input
-          type="number"
-          className="border p-2 w-full rounded"
-          placeholder="Starting length (in) Set to 150 feet (1800 inches)"
-          //value={form.starting_length_in} // default to 150 feet
-          onChange={(e) =>
-            setForm({ ...form, starting_length_in: Number(e.target.value) })
-          }
-          required
-        />
+          <input
+            type="number"
+            className="border p-2 w-full rounded"
+            placeholder="Starting length (feet) — default 150 ft"
+            value={form.starting_length_in === 0 ? '' : form.starting_length_in / 12}
+            onChange={(e) => {
+              const feet = e.target.value;
+              setForm({
+                ...form,
+                starting_length_in: feet === '' ? 0 : Math.round(Number(feet) * 12),
+              });
+            }}
+            required
+          />
 
-        <input
-          type="number"
-          className="border p-2 w-full rounded"
-          placeholder="Cost (USD)"
-          value={form.cost_cents === 0 ? '' : form.cost_cents / 100}
-          onChange={(e) =>
-            setForm({
-              ...form,
-              cost_cents: Math.round(Number(e.target.value) * 100),
-            })
-          }
-        />
+          <input
+            type="number"
+            className="border p-2 w-full rounded"
+            placeholder="Cost (USD)"
+            value={form.cost_cents === 0 ? '' : form.cost_cents / 100}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                cost_cents: Math.round(Number(e.target.value) * 100),
+              })
+            }
+          />
 
-        <textarea
-          className="border p-2 w-full rounded"
-          placeholder="Notes (optional)"
-          value={form.note}
-          onChange={(e) => setForm({ ...form, note: e.target.value })}
-        />
-        <button
-          type="submit"
-          className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800"
-        >
-          Save Roll
-        </button>
-      </form>
+          <textarea
+            className="border p-2 w-full rounded"
+            placeholder="Notes (optional)"
+            value={form.note}
+            onChange={(e) => setForm({ ...form, note: e.target.value })}
+          />
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800 disabled:opacity-60"
+          >
+            {isSubmitting ? 'Saving…' : 'Save Roll'}
+          </button>
+        </form>
 
-      {status && <p className="text-sm text-gray-600">{status}</p>}
-    </div>
+        {errorMsg && (
+          <p className="text-sm text-red-600">{errorMsg}</p>
+        )}
+      </div>
+    </Protected>
   );
 }

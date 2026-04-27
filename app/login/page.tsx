@@ -22,18 +22,16 @@ export default function LoginPage() {
     });
 
     if (error) {
-      setStatus(` ${error.message}`);
+      setStatus(error.message);
       setLoading(false);
       return;
     }
 
-    setStatus(' Logged in!');
-    setLoading(false);
     router.push('/');
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-30 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-md p-6 space-y-4">
         <h1 className="text-xl font-semibold text-center text-black">
           Login
